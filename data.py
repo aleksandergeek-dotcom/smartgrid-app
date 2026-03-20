@@ -216,7 +216,7 @@ def get_load_profile_96(station_id: str = "all", ref_date=None) -> pd.DataFrame:
     - 20 odbiorców mix przem. (ST-B): szczyt ~200 kW, średnia ~80 kW
     - 60 odbiorców łącznie: szczyt ~350–450 kW
     """
-    seed = 42 if ref_date is None else int(ref_date.strftime("%Y%m%d")) % 10000
+    seed = 42 if ref_date is None else int(str(ref_date).replace("-","")) % 10000
     rng = np.random.default_rng(seed)
 
     # Bazowy profil znormalizowany 0-1 (typowy profil PL wg PSE)
@@ -229,7 +229,6 @@ def get_load_profile_96(station_id: str = "all", ref_date=None) -> pd.DataFrame:
     # Rozszerzamy do 96 punktów (każda godzina → 4×15min)
     base_96 = np.repeat(base_norm, 4)
     # Lekkie wygładzenie
-    from numpy.lib.stride_tricks import sliding_window_view
     kernel = np.array([0.15, 0.7, 0.15])
     base_96_s = np.convolve(base_96, kernel, mode='same')
 
@@ -264,7 +263,10 @@ def get_load_profile_96(station_id: str = "all", ref_date=None) -> pd.DataFrame:
     # Timestamp bazowy
     base_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     if ref_date is not None:
-        base_dt = datetime.combine(ref_date, datetime.min.time())
+        try:
+            base_dt = datetime(ref_date.year, ref_date.month, ref_date.day)
+        except Exception:
+            base_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     times = [base_dt + timedelta(minutes=15 * i) for i in range(96)]
 
     return pd.DataFrame({"time": times,
@@ -318,24 +320,88 @@ def get_pv_profile(station_id: str = "all") -> pd.DataFrame:
     return pd.DataFrame({"hour": hours, "forecast_kw": forecast, "actual_kw": actual})
 
 
-def get_prediction_monthly(station_id: str = "all") -> pd.DataFrame:
-    """Prognoza zużycia na marzec — 31 dni."""
+def get_prediction_monthly(station_id: str = "all", months_ahead: int = 1,
+                           start_date=None) -> pd.DataFrame:
+    """
+    Prognoza zuzycia — od 1 do 12 miesiecy do przodu z uwzglednieniem:
+    - sezonowosc (zima +35%, lato -25%)
+    - temperatura (korelacja r=0.82 z poborem ogrzewania)
+    - weekend vs dzien roboczy (-15%)
+    - rosnacc przedzialy ufnosci z horyzontem
+    """
     rng = np.random.default_rng(7)
-    scale = {"sta": 0.38, "stb": 0.35, "stc": 0.27}.get(station_id, 1.0)
-    base = np.array([82,85,88,84,82,76,78,90,94,98,95,90,84,80,77,91,
-                     100,106,110,104,95,84,80,78,75,82,87,91,85,82,79])
-    values = (base * scale * (1 + rng.normal(0, 0.04, 31))).round(0)
-    today_idx = 14
-    history = [v if i <= today_idx else np.nan for i, v in enumerate(values)]
-    forecast = [np.nan if i < today_idx else v for i, v in enumerate(values)]
-    upper = [np.nan if i < today_idx else v * 1.11 for i, v in enumerate(values)]
-    lower = [np.nan if i < today_idx else v * 0.89 for i, v in enumerate(values)]
+    base_daily = {"sta": 320, "stb": 3800, "stc": 390}.get(station_id, 4510)
+    seasonal = {
+        1:1.38, 2:1.32, 3:1.12, 4:0.92, 5:0.80, 6:0.73,
+        7:0.72, 8:0.75, 9:0.85, 10:1.02, 11:1.22, 12:1.35,
+    }
+    avg_temp = {
+        1:-2, 2:-1, 3:4, 4:10, 5:15, 6:19,
+        7:21, 8:20, 9:16, 10:10, 11:4, 12:0,
+    }
+    today = datetime.now().date()
+    if start_date is None:
+        start_date = today
+    n_days = months_ahead * 31
+    rows = []
+    for i in range(n_days):
+        d = start_date + timedelta(days=i)
+        m = d.month
+        dow = d.weekday()
+        season_factor = seasonal[m]
+        temp_factor = 1.0 + max(0, (8 - avg_temp[m]) * 0.015)
+        weekend_factor = 0.86 if dow >= 5 else 1.0
+        noise = rng.normal(0, 0.035)
+        value = base_daily * season_factor * temp_factor * weekend_factor * (1 + noise)
+        ci_pct = min(0.32, 0.06 + i * 0.0007)
+        is_hist = d <= today
+        rows.append({
+            "date": d,
+            "label": d.strftime("%d.%m"),
+            "value": round(value, 0),
+            "upper": round(value * (1 + ci_pct), 0) if not is_hist else float("nan"),
+            "lower": round(value * (1 - ci_pct), 0) if not is_hist else float("nan"),
+            "history": round(value, 0) if is_hist else float("nan"),
+            "forecast": round(value, 0) if not is_hist else float("nan"),
+            "temp_avg": avg_temp[m],
+            "season_factor": season_factor,
+            "is_weekend": dow >= 5,
+            "month": m,
+        })
+    return pd.DataFrame(rows)
 
-    days = [f"{d+1:02d}.03" for d in range(31)]
-    return pd.DataFrame({"day": days, "history": history,
-                         "forecast": forecast, "upper": upper, "lower": lower})
 
-
+def get_risk_events_prediction(station_id: str = "ST-B",
+                               months_ahead: int = 3) -> pd.DataFrame:
+    """Predykcja ryzyka przeciazen na podstawie pogody i sezonowosc."""
+    rng = np.random.default_rng(42)
+    today = datetime.now().date()
+    n_days = months_ahead * 30
+    seasonal_risk = {
+        1:0.72, 2:0.68, 3:0.55, 4:0.28, 5:0.18, 6:0.12,
+        7:0.10, 8:0.12, 9:0.22, 10:0.38, 11:0.58, 12:0.70,
+    }
+    risk_drivers = {
+        1:"Mroz + ogrzewanie el.", 2:"Mroz + ogrzewanie el.",
+        3:"Zmienne temperatury",  4:"Normalne warunki",
+        5:"Normalne warunki",    6:"Klimatyzacja",
+        7:"Klimatyzacja (szczyt)", 8:"Klimatyzacja",
+        9:"Zmienne temperatury", 10:"Normalne warunki",
+        11:"Deszcz + ogrzewanie", 12:"Mroz + ogrzewanie el.",
+    }
+    rows = []
+    for i in range(n_days):
+        d = today + timedelta(days=i)
+        m = d.month
+        base_risk = seasonal_risk[m]
+        risk = float(np.clip(base_risk + rng.normal(0, 0.08), 0.05, 0.97))
+        rows.append({
+            "date": d, "label": d.strftime("%d.%m"),
+            "risk_pct": round(risk * 100, 1),
+            "driver": risk_drivers[m],
+            "level": "high" if risk > 0.6 else "medium" if risk > 0.35 else "low",
+        })
+    return pd.DataFrame(rows)
 def get_price_forecast() -> pd.DataFrame:
     """Prognoza cen TGE na marzec."""
     rng = np.random.default_rng(13)

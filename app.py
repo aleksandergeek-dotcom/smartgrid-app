@@ -11,87 +11,86 @@ import numpy as np
 from datetime import datetime, timedelta, date
 
 import data as D
+import gridsense_theme as T
 
 st.set_page_config(page_title="GridSense AMR", page_icon="⚡",
                    layout="wide", initial_sidebar_state="expanded")
 
-st.markdown("""
-<style>
-[data-testid="stSidebar"]{min-width:220px!important;max-width:220px!important;}
-[data-testid="stMetric"]{background:white;border:1px solid #e2e6ed;border-radius:10px;padding:12px 16px;}
-[data-testid="stMetricValue"]{font-size:22px!important;font-weight:700;}
-[data-testid="stMetricLabel"]{font-size:11px!important;text-transform:uppercase;letter-spacing:.05em;color:#9aa3b0;}
-.block-container{padding-top:1.5rem!important;}
-.stExpander{border:1px solid #e2e6ed!important;border-radius:8px!important;margin-bottom:6px!important;}
-</style>
-""", unsafe_allow_html=True)
+st.markdown(f"<style>{T.THEME_CSS}</style>", unsafe_allow_html=True)
 
-# ─── KOLORY ───────────────────────────────────────────────────────────────────
-BLUE="#2563eb"; GREEN="#16a34a"; RED="#dc2626"; AMBER="#d97706"
-PURPLE="#9333ea"; GRAY="#9aa3b0"; TEAL="#0d9488"
+# ─── KOLORY (z theme) ─────────────────────────────────────────────────────────
+BLUE=T.BLUE; GREEN=T.GREEN; RED=T.RED; AMBER=T.AMBER
+PURPLE=T.PURPLE; GRAY=T.GRAY; TEAL=T.TEAL
 
-# ─── LAYOUT HELPER ────────────────────────────────────────────────────────────
-# KLUCZOWA POPRAWKA: nie używamy **PLOTLY_LAYOUT ze słownikiem zawierającym 'yaxis'
-# i jednocześnie yaxis=dict(...) — to powoduje TypeError "multiple values for keyword argument"
-# Rozwiązanie: budujemy layout jako jeden słownik i wywołujemy update_layout raz.
-def make_layout(height=220, xkw=None, ykw=None, y2kw=None, extra=None):
-    lo = dict(
-        height=height,
-        margin=dict(l=44, r=20, t=30, b=40),
-        plot_bgcolor="white", paper_bgcolor="white",
-        font=dict(family="Inter,system-ui,sans-serif", size=11, color="#2d3748"),
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
-                    font=dict(size=10)),
-        xaxis=dict(showgrid=False, linecolor="#e2e6ed", linewidth=1, **(xkw or {})),
-        yaxis=dict(gridcolor="rgba(0,0,0,.05)", linecolor="#e2e6ed", **(ykw or {})),
-    )
-    if y2kw:
-        lo["yaxis2"] = dict(gridcolor="rgba(0,0,0,.05)", linecolor="#e2e6ed", **y2kw)
-    if extra:
-        lo.update(extra)
-    return lo
-
-
+# ─── LAYOUT HELPER (deleguje do theme) ───────────────────────────────────────
 def fl(fig, height=220, xkw=None, ykw=None, y2kw=None, extra=None):
-    fig.update_layout(**make_layout(height, xkw, ykw, y2kw, extra))
-    return fig
+    return T.chart_layout(fig, height, xkw, ykw, y2kw, extra)
 
 
 # ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+now = datetime.now()
 with st.sidebar:
-    st.markdown("""
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
-      <div style="background:#2563eb;color:white;font-weight:700;font-size:13px;
-          padding:6px 10px;border-radius:7px">⚡</div>
-      <div><div style="font-weight:700;font-size:14px">GridSense AMR</div>
-        <div style="font-size:10px;color:#9aa3b0">System zarządzania licznikami</div></div>
+    st.markdown(f"""
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;
+          padding-bottom:16px;border-bottom:1px solid rgba(0,0,0,.07)">
+        <div style="width:36px;height:36px;background:#0A84FF;border-radius:10px;
+            display:flex;align-items:center;justify-content:center;font-size:18px;
+            flex-shrink:0">⚡</div>
+        <div>
+          <div style="font-weight:800;font-size:15px;letter-spacing:-.4px;">GridSense</div>
+          <div style="font-size:10px;color:#A8AEBB;font-weight:500;letter-spacing:.02em">AMR Platform</div>
+        </div>
+      </div>
+      <div style="padding:12px 14px;background:#F8F9FB;border-radius:12px;
+          border:1px solid rgba(0,0,0,.07);margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:7px;height:7px;border-radius:50%;background:#30D158"></div>
+            <span style="font-size:11px;font-weight:700">LIVE</span>
+          </div>
+          <span style="font-family:"JetBrains Mono",monospace;font-size:11px;color:#A8AEBB">{now.strftime('%H:%M:%S')}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:11px;color:#7C8499">TGE</span>
+          <span style="font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:700">0.84 PLN/kWh</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:11px;color:#7C8499">Alerty</span>
+          <span style="background:#FFF0EF;color:#FF3B30;font-size:11px;font-weight:700;
+              padding:2px 8px;border-radius:99px">9 aktywnych</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span style="font-size:11px;color:#7C8499">Stacje</span>
+          <span style="background:#E8FAF0;color:#1A9E3C;font-size:11px;font-weight:700;
+              padding:2px 8px;border-radius:99px">3/3 online</span>
+        </div>
+      </div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+          letter-spacing:.08em;color:#A8AEBB;padding:0 2px;margin-bottom:4px">Menu</div>
     </div>""", unsafe_allow_html=True)
 
-    view = st.radio("Nawigacja", [
-        "📊 Przegląd", "📈 Profile & Ciągi", "🔌 Transformator",
-        "🔮 Predykcja AI", "🚨 Alerty & Skutki", "🔍 Detekcja Fraudów",
-        "📋 Podsumowanie", "🔢 Liczniki",
+    view = st.radio("", [
+        "📊  Przegląd",
+        "📈  Profile & Ciągi",
+        "🔌  Transformator",
+        "🔮  Predykcja AI",
+        "🚨  Alerty & Skutki",
+        "🔍  Detekcja Fraudów",
+        "📋  Podsumowanie",
+        "🔢  Liczniki",
     ], label_visibility="hidden")
 
-    st.divider()
-    now = datetime.now()
-    st.markdown(f"""
-    <div style="font-size:11px;color:#6b7585">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-        <div style="width:7px;height:7px;border-radius:50%;background:#22c55e"></div>
-        <strong>LIVE</strong> — {now.strftime('%H:%M:%S')}
+    st.markdown("""
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(0,0,0,.07)">
+      <div style="font-size:10px;color:#A8AEBB;line-height:1.7">
+        GridSense AMR v2.0<br>Python + Streamlit<br>Dane: symulowane
       </div>
-      <div>TGE: <strong style="color:#1a202c">0.84 PLN/kWh</strong></div>
-      <div>Alerty: <strong style="color:#dc2626">9 aktywnych</strong></div>
-      <div>Stacje: <strong style="color:#16a34a">3/3 online</strong></div>
     </div>""", unsafe_allow_html=True)
-    st.divider()
-    st.caption("GridSense AMR v2.0 · Streamlit\nDane: symulowane (prototyp)")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-if view == "📊 Przegląd":
+if view == "📊  Przegląd":
     st.markdown("## Dashboard operacyjny")
     st.caption("3 stacje nN/SN · 60 liczników AMR · odczyt co 15 minut")
 
@@ -109,10 +108,10 @@ if view == "📊 Przegląd":
         df = D.get_load_profile_96("all")
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=df["time"],y=df["load_kw"],name="Pobór sieciowy",
-            fill="tozeroy",fillcolor="rgba(37,99,235,.10)",
+            fill="tozeroy",fillcolor="rgba(10,132,255,.10)",
             line=dict(color=BLUE,width=1.8),hovertemplate="%{y:.0f} kW"))
         fig.add_trace(go.Scatter(x=df["time"],y=df["oze_kw"],name="Produkcja OZE",
-            fill="tozeroy",fillcolor="rgba(22,163,74,.10)",
+            fill="tozeroy",fillcolor="rgba(48,209,88,.10)",
             line=dict(color=GREEN,width=1.8),hovertemplate="%{y:.0f} kW"))
         fig.add_trace(go.Scatter(x=df["time"],y=df["netto_kw"],name="Netto",
             line=dict(color=GRAY,width=1.2,dash="dot"),hovertemplate="%{y:.0f} kW"))
@@ -144,11 +143,11 @@ if view == "📊 Przegląd":
         for s in D.STATIONS:
             color=RED if s["risk"]=="high" else AMBER if s["risk"]=="medium" else GREEN
             badge="🔴 Ryzyko" if s["risk"]=="high" else "🟡 Uwaga" if s["risk"]=="medium" else "🟢 OK"
-            st.markdown(f"""<div style="border:1px solid #e2e6ed;border-radius:8px;
+            st.markdown(f"""<div style="border:1px solid rgba(0,0,0,.07);border-radius:14px;
                 padding:10px 12px;margin-bottom:6px;background:white">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div><div style="font-weight:600;font-size:13px">{s['name']}</div>
-                  <div style="font-size:11px;color:#9aa3b0">{s['meters']} liczn. · {s['type']}</div></div>
+                  <div style="font-size:11px;color:#A8AEBB">{s['meters']} liczn. · {s['type']}</div></div>
                 <div style="text-align:right">
                   <div style="font-weight:700;font-size:15px;color:{color}">{s['load']}%</div>
                   <div style="font-size:11px">{badge}</div>
@@ -165,7 +164,7 @@ if view == "📊 Przegląd":
                   font-size:13px;flex-shrink:0">{a['icon']}</div>
               <div style="flex:1;min-width:0">
                 <div style="font-weight:600;font-size:12px">{a['title'][:38]}</div>
-                <div style="font-size:11px;color:#9aa3b0">{a['meter']} · {a['time']}</div>
+                <div style="font-size:11px;color:#A8AEBB">{a['meter']} · {a['time']}</div>
               </div>
               <div style="background:{bg}22;color:{bg};font-size:10px;font-weight:600;
                   padding:2px 7px;border-radius:99px;flex-shrink:0">
@@ -186,7 +185,7 @@ if view == "📊 Przegląd":
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-elif view == "📈 Profile & Ciągi":
+elif view == "📈  Profile & Ciągi":
     st.markdown("## Profile zużycia, OZE i mapa napięć")
 
     ct1,ct2,ct3 = st.columns([2,1,1])
@@ -231,12 +230,12 @@ elif view == "📈 Profile & Ciągi":
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=df["time"],y=df["load_kw"],
             name=f"Pobór {sel_date.strftime('%d.%m')}",
-            fill="tozeroy",fillcolor="rgba(37,99,235,.10)",
+            fill="tozeroy",fillcolor="rgba(10,132,255,.10)",
             line=dict(color=BLUE,width=2),hovertemplate="%{y:.0f} kW · %{x|%H:%M}"))
         fig.add_trace(go.Scatter(x=df["time"],y=last_week.values,name="Tydzień temu",
             line=dict(color=GRAY,width=1.5,dash="dot"),hovertemplate="%{y:.0f} kW"))
         fig.add_vrect(x0=df["time"].iloc[28],x1=df["time"].iloc[36],
-            fillcolor="rgba(37,99,235,.06)",line_width=0,
+            fillcolor="rgba(10,132,255,.06)",line_width=0,
             annotation_text="szczyt poranny",annotation_font_size=9)
         fig.add_vrect(x0=df["time"].iloc[68],x1=df["time"].iloc[84],
             fillcolor="rgba(220,38,38,.05)",line_width=0,
@@ -256,7 +255,7 @@ elif view == "📈 Profile & Ciągi":
             line=dict(color=AMBER,width=1.5),hovertemplate="%{y:.1f} kW"))
         fig2.add_trace(go.Scatter(x=df_pv["hour"],y=df_pv["actual_kw"],
             name="Produkcja rzeczywista",
-            fill="tozeroy",fillcolor="rgba(22,163,74,.10)",
+            fill="tozeroy",fillcolor="rgba(48,209,88,.10)",
             line=dict(color=GREEN,width=2),mode="lines+markers",
             marker=dict(size=5,color=GREEN),hovertemplate="%{y:.1f} kW"))
         fig2.add_vrect(x0="13:00",x1="14:00",
@@ -358,20 +357,20 @@ elif view == "📈 Profile & Ciągi":
             pv_n2=len(c["pv_indices"])
             def vc(v): return RED if v<215 or v>242 else AMBER if v<220 or v>238 else GREEN
             ph_html="".join(
-                f'<div style="flex:1;text-align:center;background:#f8f9fb;border-radius:6px;padding:6px 4px">'
-                f'<div style="font-size:9px;color:#9aa3b0;font-weight:600">L{i+1}</div>'
+                f'<div style="flex:1;text-align:center;background:#F8F9FB;border-radius:6px;padding:6px 4px">'
+                f'<div style="font-size:9px;color:#A8AEBB;font-weight:600">L{i+1}</div>'
                 f'<div style="font-weight:700;font-size:13px;color:{vc(v)}">{v}V</div></div>'
                 for i,v in enumerate([v1e,v2e,v3e]))
-            st.markdown(f"""<div style="border:1px solid #e2e6ed;border-left:4px solid {lc};
-                border-radius:10px;padding:13px;background:white;margin-bottom:10px">
+            st.markdown(f"""<div style="border:1px solid rgba(0,0,0,.07);border-left:4px solid {lc};
+                border-radius:16px;padding:15px;background:#FFFFFF;margin-bottom:10px">
               <div style="display:flex;justify-content:space-between;margin-bottom:6px">
                 <div><span style="font-weight:700;font-size:13px;color:{lc}">{c['id']}</span>
-                  <span style="font-size:11px;color:#9aa3b0;margin-left:6px">{c['cable']}</span></div>
+                  <span style="font-size:11px;color:#A8AEBB;margin-left:6px">{c['cable']}</span></div>
                 <span style="background:{lc}22;color:{lc};font-size:11px;font-weight:600;
                     padding:2px 8px;border-radius:99px">{c['load']}%</span></div>
-              <div style="font-size:11px;color:#6b7585;margin-bottom:8px">{c['label']}</div>
+              <div style="font-size:11px;color:#7C8499;margin-bottom:8px">{c['label']}</div>
               <div style="display:flex;gap:5px;margin-bottom:8px">{ph_html}</div>
-              <div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7585">
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:#7C8499">
                 <span>Asymetria: <strong>{c['asym']}%</strong></span>
                 <span>☀ {pv_n2}×5kW={pv_n2*5}kW</span></div>
               <div style="height:4px;background:#f0f2f5;border-radius:2px;overflow:hidden;margin-top:8px">
@@ -380,7 +379,7 @@ elif view == "📈 Profile & Ciągi":
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-elif view == "🔌 Transformator":
+elif view == "🔌  Transformator":
     st.markdown("## Diagnostyka transformatorów")
     st.caption("Temperatura · drgania FFT · harmoniczne · izolacja · wykrywanie anomalii")
 
@@ -448,7 +447,7 @@ elif view == "🔌 Transformator":
         fig_vt=go.Figure()
         fig_vt.add_trace(go.Scatter(x=df_vib_hist["date"],y=df_vib_hist["vib_100hz"],
             name="Amplituda 100 Hz",line=dict(color=BLUE,width=2),
-            fill="tozeroy",fillcolor="rgba(37,99,235,.08)",hovertemplate="%{y:.2f} mm/s"))
+            fill="tozeroy",fillcolor="rgba(10,132,255,.08)",hovertemplate="%{y:.2f} mm/s"))
         trend_col=RED if slope>0.04 else AMBER if slope>0.01 else GREEN
         fig_vt.add_trace(go.Scatter(x=df_vib_hist["date"],y=trend_line,
             name=f"Trend ({slope*7:.3f} mm/s/tydz.)",
@@ -524,101 +523,186 @@ if np.max(z_scores) > 3.0:     # >3 sigma = anomalia
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-elif view == "🔮 Predykcja AI":
+elif view == "🔮  Predykcja AI":
     st.markdown("## Predykcja AI — zużycie & zagrożenia")
-    st.caption("Model ML · dane pogodowe IMGW · ceny TGE · historia 18 miesięcy")
-    st.info("📌 Szczyt zużycia **18–22 marca (+26%)** — temp. nocne −5°C. "
-            "ST-B Wólka: **ryzyko 82%** o 17–20. Koszt w szczycie: ~**1.12 PLN/kWh**.")
+    st.caption("Model uwzgledniajacy: sezonowosc · temperature IMGW · weekendy · rosnace przedzialy ufnosci")
 
-    pred_st=st.selectbox("Stacja",["all","sta","stb","stc"],
-        format_func=lambda x:{"all":"Wszystkie","sta":"ST-A","stb":"ST-B","stc":"ST-C"}[x])
+    # Kontrolki gorne
+    pc1, pc2, pc3, pc4 = st.columns([2, 1, 1, 1])
+    with pc1:
+        pred_st = st.selectbox("Stacja", ["all","sta","stb","stc"],
+            format_func=lambda x: {"all":"Wszystkie stacje","sta":"ST-A Górna",
+                                   "stb":"ST-B Wólka","stc":"ST-C Centrum"}[x])
+    with pc2:
+        months_ahead = st.selectbox("Horyzont prognozy",
+            [1, 3, 6, 12],
+            format_func=lambda x: f"{x} miesiąc" if x==1 else f"{x} miesiące" if x<5 else f"{x} miesięcy",
+            index=0)
+    with pc3:
+        from datetime import date as date_type
+        pred_start = st.date_input("Od dnia",
+            value=date_type.today(),
+            min_value=date_type.today() - timedelta(days=365),
+            max_value=date_type.today())
+    with pc4:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        ci_pct_end = min(32, 6 + months_ahead * 30 * 0.07)
+        st.info(f"Przedział ufnosci: ±6% → ±{ci_pct_end:.0f}%")
 
-    col1,col2=st.columns([3,2])
+    df_pred = D.get_prediction_monthly(pred_st, months_ahead=months_ahead, start_date=pred_start)
+
+    # Insight oparty na danych
+    peak_month_idx = df_pred.groupby("month")["value"].mean().idxmax()
+    peak_month_name = {1:"Styczen",2:"Luty",3:"Marzec",4:"Kwiecien",5:"Maj",6:"Czerwiec",
+                       7:"Lipiec",8:"Sierpien",9:"Wrzesien",10:"Pazdziernik",
+                       11:"Listopad",12:"Grudzien"}.get(peak_month_idx,"")
+    winter_months = df_pred[df_pred["month"].isin([12,1,2])]
+    summer_months = df_pred[df_pred["month"].isin([6,7,8])]
+    if len(winter_months) > 0 and len(summer_months) > 0:
+        w_avg = winter_months["value"].mean()
+        s_avg = summer_months["value"].mean()
+        diff_pct = (w_avg / s_avg - 1) * 100
+        st.info(f"📊 Prognoza na {months_ahead} mies. — zima vs lato: "
+                f"**+{diff_pct:.0f}%** wyzsze zuzycie zima (ogrzewanie elektryczne). "
+                f"Szczyt sezonowy: **{peak_month_name}**. "
+                f"Przedzialy ufnosci rosna z horyzontem: koniec prognozy ±{ci_pct_end:.0f}%.")
+
+    col1, col2 = st.columns([3, 2])
     with col1:
-        st.markdown("**Prognoza zużycia — marzec 2025 (kWh/dzień)**")
-        df_pred=D.get_prediction_monthly(pred_st)
-        fig_p=go.Figure()
-        # Używamy "none" (string) zamiast None dla fill — to była główna przyczyna ValueError
-        fig_p.add_trace(go.Scatter(x=df_pred["day"],y=df_pred["upper"],
-            fill="none",mode="lines",line=dict(color="rgba(0,0,0,0)"),showlegend=False))
-        fig_p.add_trace(go.Scatter(x=df_pred["day"],y=df_pred["lower"],
-            fill="tonexty",mode="lines",fillcolor="rgba(37,99,235,.12)",
-            line=dict(color="rgba(0,0,0,0)"),name="Przedział ufności"))
-        fig_p.add_trace(go.Scatter(x=df_pred["day"],y=df_pred["history"],
-            name="Historia",line=dict(color=BLUE,width=2.5),
-            hovertemplate="%{y:.0f} kWh",connectgaps=False))
-        fig_p.add_trace(go.Scatter(x=df_pred["day"],y=df_pred["forecast"],
-            name="Prognoza AI",line=dict(color="#60a5fa",width=2,dash="dash"),
-            hovertemplate="%{y:.0f} kWh",connectgaps=False))
-        fig_p.add_vrect(x0="18.03",x1="22.03",fillcolor="rgba(220,38,38,.06)",
-            line_width=0,annotation_text="Szczyt",annotation_font_size=9)
-        fl(fig_p,270,xkw=dict(tickangle=45,nticks=16),ykw=dict(title="kWh/dzień"))
+        st.markdown(f"**Prognoza zuzwycia — {months_ahead * 31} dni (kWh/dzien)**")
+        fig_p = go.Figure()
+        # Przedzialy ufnosci
+        fig_p.add_trace(go.Scatter(x=df_pred["label"], y=df_pred["upper"],
+            fill="none", mode="lines", line=dict(color="rgba(0,0,0,0)"), showlegend=False))
+        fig_p.add_trace(go.Scatter(x=df_pred["label"], y=df_pred["lower"],
+            fill="tonexty", mode="lines", fillcolor="rgba(10,132,255,.10)",
+            line=dict(color="rgba(0,0,0,0)"), name="Przedzialy ufnosci"))
+        # Historia
+        fig_p.add_trace(go.Scatter(x=df_pred["label"], y=df_pred["history"],
+            name="Historia", line=dict(color=BLUE, width=2.5),
+            hovertemplate="%{y:.0f} kWh · %{x}", connectgaps=False))
+        # Prognoza
+        fig_p.add_trace(go.Scatter(x=df_pred["label"], y=df_pred["forecast"],
+            name="Prognoza AI", line=dict(color="#60a5fa", width=2, dash="dash"),
+            hovertemplate="%{y:.0f} kWh · %{x}", connectgaps=False))
+        # Oznacz weekendy jako szare tło
+        weekends = df_pred[df_pred["is_weekend"]]
+        for _, wr in weekends.iloc[::2].iterrows():
+            fig_p.add_vrect(x0=wr["label"], x1=wr["label"],
+                fillcolor="rgba(0,0,0,.02)", line_width=0)
+        # Oznacz szczyty zimowe
+        high_load = df_pred[df_pred["season_factor"] > 1.2]
+        if len(high_load) > 0:
+            # Zaznacz pierwszy i ostatni dzien wysokiego sezonu
+            pass
+
+        nticks = min(len(df_pred), 20)
+        fl(fig_p, 290,
+           xkw=dict(tickangle=45, nticks=nticks),
+           ykw=dict(title="kWh/dzien"))
         st.plotly_chart(fig_p, use_container_width=True)
 
+        # Statystyki prognozy
+        hist = df_pred[df_pred["history"].notna()]
+        fcast = df_pred[df_pred["forecast"].notna()]
+        ps1,ps2,ps3,ps4 = st.columns(4)
+        if len(hist) > 0:
+            ps1.metric("Srednia hist.", f"{hist['value'].mean():.0f} kWh/d")
+        if len(fcast) > 0:
+            ps2.metric("Srednia prognoza", f"{fcast['value'].mean():.0f} kWh/d")
+            ps3.metric("Szczyt prognozy", f"{fcast['value'].max():.0f} kWh/d")
+            ps4.metric("Min. prognozy", f"{fcast['value'].min():.0f} kWh/d")
+
     with col2:
-        st.markdown("**Ryzyko przeciążeń — stacje**")
-        for nm,risk,sev,peak in [("ST-B Wólka",83,"error","17–20"),
-                                   ("ST-A Górna",64,"warn","18–20"),
-                                   ("ST-C Centrum",52,"ok","—")]:
-            col_r=RED if sev=="error" else AMBER if sev=="warn" else GREEN
-            lbl="Krytyczne" if sev=="error" else "Uwaga" if sev=="warn" else "Normalne"
-            st.markdown(f"""<div style="margin-bottom:12px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px">
-                <strong>{nm}</strong>
-                <span style="font-weight:700;color:{col_r}">{risk}%</span></div>
-              <div style="height:7px;background:#f0f2f5;border-radius:3px;overflow:hidden;margin-bottom:4px">
-                <div style="height:100%;width:{risk}%;background:{col_r};border-radius:3px"></div></div>
-              <div style="font-size:11px;color:#6b7585">Szczyt: godz. {peak} ·
-                <span style="color:{col_r};font-weight:600">{lbl}</span></div>
+        st.markdown("**Ryzyko przeciazen — nastepne 90 dni**")
+        df_risk = D.get_risk_events_prediction(
+            "ST-B" if pred_st in ("all","stb") else pred_st.upper().replace("STA","ST-A").replace("STC","ST-C"),
+            months_ahead=max(1, months_ahead // 2 + 1))
+        # Grupuj po tygodniach
+        df_risk["week"] = pd.to_datetime(df_risk["date"]).dt.isocalendar().week.astype(str)
+        weekly = df_risk.groupby(["week","driver"])["risk_pct"].mean().reset_index()
+        weekly = weekly.head(12)
+
+        fig_risk = go.Figure()
+        colors_risk = [RED if r>60 else AMBER if r>35 else GREEN for r in df_risk["risk_pct"]]
+        fig_risk.add_trace(go.Bar(
+            x=df_risk["label"].iloc[::7],  # co tydzien
+            y=df_risk["risk_pct"].iloc[::7],
+            marker_color=[RED if r>60 else AMBER if r>35 else GREEN
+                         for r in df_risk["risk_pct"].iloc[::7]],
+            hovertemplate="Ryzyko: %{y:.1f}%<extra>%{x}</extra>"))
+        fig_risk.add_hline(y=60, line_dash="dot", line_color=RED, line_width=1,
+            annotation_text="Prog krytyczny 60%")
+        fig_risk.add_hline(y=35, line_dash="dot", line_color=AMBER, line_width=1,
+            annotation_text="Prog ostrzegawczy 35%")
+        fl(fig_risk, 200,
+           xkw=dict(title=None, tickangle=45),
+           ykw=dict(title="Ryzyko %", range=[0,100]))
+        st.plotly_chart(fig_risk, use_container_width=True)
+
+        # Czynniki ryzyka
+        st.markdown("**Glowne czynniki ryzyka wg sezonu:**")
+        for _, row in df_risk.drop_duplicates("driver").head(4).iterrows():
+            col_r = RED if row["risk_pct"]>60 else AMBER if row["risk_pct"]>35 else GREEN
+            st.markdown(f"""<div style="display:flex;justify-content:space-between;
+                padding:6px 10px;background:#F8F9FB;border-radius:6px;
+                border-left:3px solid {col_r};margin-bottom:5px">
+              <span style="font-size:12px">{row['driver']}</span>
+              <span style="font-weight:700;color:{col_r};font-size:12px">{row['risk_pct']:.0f}%</span>
             </div>""", unsafe_allow_html=True)
+
         st.divider()
         st.markdown("**Predykcja asymetrii faz — 7 dni**")
-        df_asym=D.get_asym_prediction()
-        fig_a=go.Figure()
-        for st_id3,col3_ in [("ST-A",BLUE),("ST-B",RED),("ST-C",GREEN)]:
-            fig_a.add_trace(go.Bar(name=st_id3,x=df_asym["day"],y=df_asym[st_id3],
-                marker_color=col3_,marker_opacity=0.75))
-        fig_a.add_hline(y=2,line_dash="dot",line_color=AMBER,line_width=1,
+        df_asym = D.get_asym_prediction()
+        fig_a = go.Figure()
+        for st_id3, col3_ in [("ST-A",BLUE),("ST-B",RED),("ST-C",GREEN)]:
+            fig_a.add_trace(go.Bar(name=st_id3, x=df_asym["day"], y=df_asym[st_id3],
+                marker_color=col3_, marker_opacity=0.75))
+        fig_a.add_hline(y=2, line_dash="dot", line_color=AMBER, line_width=1,
             annotation_text="Norma 2%")
-        fl(fig_a,195,ykw=dict(title="%",range=[0,8]),
-           extra=dict(barmode="group",margin=dict(l=40,r=10,t=20,b=30)))
+        fl(fig_a, 195, ykw=dict(title="%", range=[0,8]),
+           extra=dict(barmode="group", margin=dict(l=40,r=10,t=20,b=30)))
         st.plotly_chart(fig_a, use_container_width=True)
 
-    col3,col4=st.columns(2)
+    # Dolny rzad — ceny TGE + top liczniki
+    col3, col4 = st.columns(2)
     with col3:
         st.markdown("**Prognoza cen TGE — marzec (PLN/kWh)**")
-        df_price=D.get_price_forecast()
-        fig_pr=go.Figure()
-        fig_pr.add_trace(go.Scatter(x=df_price["day"],y=df_price["upper"],
-            fill="none",mode="lines",line=dict(color="rgba(0,0,0,0)"),showlegend=False))
-        fig_pr.add_trace(go.Scatter(x=df_price["day"],y=df_price["lower"],
-            fill="tonexty",mode="lines",fillcolor="rgba(245,158,11,.15)",
-            line=dict(color="rgba(0,0,0,0)"),name="Przedział"))
-        fig_pr.add_trace(go.Scatter(x=df_price["day"],y=df_price["price"],
-            name="Cena SPOT TGE",line=dict(color=AMBER,width=2),
+        df_price = D.get_price_forecast()
+        fig_pr = go.Figure()
+        fig_pr.add_trace(go.Scatter(x=df_price["day"], y=df_price["upper"],
+            fill="none", mode="lines", line=dict(color="rgba(0,0,0,0)"), showlegend=False))
+        fig_pr.add_trace(go.Scatter(x=df_price["day"], y=df_price["lower"],
+            fill="tonexty", mode="lines", fillcolor="rgba(255,159,10,.12)",
+            line=dict(color="rgba(0,0,0,0)"), name="Przedzialy"))
+        fig_pr.add_trace(go.Scatter(x=df_price["day"], y=df_price["price"],
+            name="Cena SPOT TGE", line=dict(color=AMBER, width=2),
             hovertemplate="%{y:.3f} PLN/kWh"))
-        fig_pr.add_vrect(x0="18.03",x1="22.03",fillcolor="rgba(220,38,38,.06)",line_width=0)
-        fl(fig_pr,210,xkw=dict(tickangle=45,nticks=10),ykw=dict(title="PLN/kWh"))
+        fl(fig_pr, 210, xkw=dict(tickangle=45, nticks=10), ykw=dict(title="PLN/kWh"))
         st.plotly_chart(fig_pr, use_container_width=True)
 
     with col4:
-        st.markdown("**Prognozy zużycia — top 12 liczników (kWh/dzień)**")
-        df_meters=D.get_meters_df()
-        top=df_meters.nlargest(12,"consumption_kwh").copy()
-        rng_t=np.random.default_rng(5)
-        top["pred"]=( top["consumption_kwh"]*(1.05+rng_t.random(len(top))*0.17)).round(1)
-        col_bars=[RED if v>25 else AMBER if v>10 else BLUE for v in top["pred"]]
-        fig_bars=go.Figure(go.Bar(x=top["pred"],y=top["id"]+" "+top["addr"],
-            orientation="h",marker_color=col_bars,
+        st.markdown("**Prognozy zuzwycia — top 12 licznikow (kWh/dzien)**")
+        df_meters = D.get_meters_df()
+        top = df_meters.nlargest(12, "consumption_kwh").copy()
+        rng_t = np.random.default_rng(5)
+        top["pred"] = (top["consumption_kwh"] * (1.05 + rng_t.random(len(top))*0.17)).round(1)
+        col_bars = [RED if v>25 else AMBER if v>10 else BLUE for v in top["pred"]]
+        fig_bars = go.Figure(go.Bar(
+            x=top["pred"], y=top["id"]+" "+top["addr"],
+            orientation="h", marker_color=col_bars,
             hovertemplate="%{x:.1f} kWh<extra>%{y}</extra>"))
-        fl(fig_bars,310,xkw=dict(title="kWh/dzień",showgrid=True,gridcolor="rgba(0,0,0,.05)"),
-           ykw=dict(autorange="reversed",showgrid=False),
-           extra=dict(margin=dict(l=120,r=20,t=20,b=40)))
+        fig_bars.update_layout(
+            height=310,
+            margin=dict(l=120, r=20, t=20, b=40),
+            plot_bgcolor="white", paper_bgcolor="white",
+            xaxis=dict(title="kWh/dzien", showgrid=True, gridcolor="rgba(0,0,0,.05)"),
+            yaxis=dict(autorange="reversed", showgrid=False))
         st.plotly_chart(fig_bars, use_container_width=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-elif view == "🚨 Alerty & Skutki":
+elif view == "🚨  Alerty & Skutki":
     st.markdown("## Alerty, anomalie i skutki")
     st.caption("Rozwiń każdy alert aby zobaczyć konsekwencje i zalecane działania")
 
@@ -645,7 +729,7 @@ elif view == "🚨 Alerty & Skutki":
         with st.expander(label,expanded=False):
             st.markdown(f"**Opis:** {a['desc']}")
             cons_items="".join(
-                f"<div style='font-size:12px;color:#374151;padding:3px 0;"
+                f"<div style='font-size:12px;color:#3D4452;padding:3px 0;"
                 f"display:flex;gap:8px'>"
                 f"<span style='color:{tx_c};font-weight:700;flex-shrink:0'>→</span>"
                 f"{c}</div>" for c in a["consequences"])
@@ -666,7 +750,7 @@ elif view == "🚨 Alerty & Skutki":
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-elif view == "🔍 Detekcja Fraudów":
+elif view == "🔍  Detekcja Fraudów":
     st.markdown("## Detekcja nieuczciwego poboru energii")
     st.caption("Analiza ML · anomalie statystyczne · wzorce czasowe · korelacja z siecią")
     st.info("🤖 Algorytm analizuje **6 wymiarów danych** per licznik. "
@@ -679,17 +763,17 @@ elif view == "🔍 Detekcja Fraudów":
             color=RED if s>=80 else AMBER if s>=70 else PURPLE
             lbl={"HIGH":"🔴 WYSOKI","MEDIUM":"🟡 ŚREDNI","LOW":"🟠 NISKI"}[f["priority"]]
             ev_html="".join(
-                f"<div style='font-size:11px;color:#4a5568;padding:2px 0;display:flex;gap:6px'>"
+                f"<div style='font-size:11px;color:#3D4452;padding:2px 0;display:flex;gap:6px'>"
                 f"<span style='color:{color};font-size:8px;margin-top:4px;flex-shrink:0'>◆</span>"
                 f"{ev}</div>" for ev in f["evidence"])
-            st.markdown(f"""<div style="border:1px solid #e2e6ed;border-left:4px solid {color};
-                border-radius:10px;padding:14px;background:white;margin-bottom:10px">
+            st.markdown(f"""<div style="border:1px solid rgba(0,0,0,.07);border-left:4px solid {color};
+                border-radius:16px;padding:16px;background:#FFFFFF;margin-bottom:10px">
               <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-                <div><div style="font-family:monospace;font-weight:700;color:{color}">
+                <div><div style="font-family:"JetBrains Mono",monospace;font-weight:700;color:{color}">
                     {f['id']} · {f['addr']}</div>
-                  <div style="font-size:11px;color:#9aa3b0">{f['station']} · {f['trend']}</div></div>
+                  <div style="font-size:11px;color:#A8AEBB">{f['station']} · {f['trend']}</div></div>
                 <div style="text-align:right">
-                  <div style="font-size:24px;font-weight:700;font-family:monospace;
+                  <div style="font-size:24px;font-weight:700;font-family:"JetBrains Mono",monospace;
                       color:{color}">{s}</div>
                   <div style="font-size:10px;font-weight:700;color:{color}">{lbl}</div>
                 </div></div>
@@ -698,7 +782,7 @@ elif view == "🔍 Detekcja Fraudów":
                   padding:9px;margin-top:10px">
                 <div style="font-size:10px;font-weight:700;color:#9333ea;margin-bottom:3px;
                     text-transform:uppercase">Rekomendacja</div>
-                <div style="font-size:12px;color:#374151">{f['recommendation']}</div>
+                <div style="font-size:12px;color:#3D4452">{f['recommendation']}</div>
               </div></div>""", unsafe_allow_html=True)
             # Unikalne klucze przez i i id
             st.button("📋 Zlecenie inspekcji",key=f"fi_{i}_{f['id']}",use_container_width=True)
@@ -712,7 +796,7 @@ elif view == "🔍 Detekcja Fraudów":
         fig_fa.add_trace(go.Scatter(x=df_fa["day"],y=df_fa["upper"],
             fill="none",mode="lines",line=dict(color="rgba(0,0,0,0)"),showlegend=False))
         fig_fa.add_trace(go.Scatter(x=df_fa["day"],y=df_fa["lower"],
-            fill="tonexty",mode="lines",fillcolor="rgba(139,92,246,.15)",
+            fill="tonexty",mode="lines",fillcolor="rgba(123,97,255,.12)",
             line=dict(color="rgba(0,0,0,0)"),name="Oczekiwany zakres"))
         fig_fa.add_trace(go.Scatter(x=df_fa["day"],y=df_fa["expected"],name="Wzorzec",
             line=dict(color=GRAY,width=1.5,dash="dot"),hovertemplate="%{y:.2f} kWh"))
@@ -733,12 +817,12 @@ elif view == "🔍 Detekcja Fraudów":
         df_fp=D.get_fraud_daily_profile()
         fig_fp=go.Figure()
         fig_fp.add_trace(go.Scatter(x=df_fp["hour"],y=df_fp["group_avg"],
-            name="Grupa odniesienia",fill="tozeroy",fillcolor="rgba(37,99,235,.10)",
+            name="Grupa odniesienia",fill="tozeroy",fillcolor="rgba(10,132,255,.10)",
             line=dict(color=BLUE,width=1.8),hovertemplate="%{y:.2f} kWh"))
         fig_fp.add_trace(go.Scatter(x=df_fp["hour"],y=df_fp["m041"],
-            name="M-041 (podejrzany)",fill="tozeroy",fillcolor="rgba(220,38,38,.10)",
+            name="M-041 (podejrzany)",fill="tozeroy",fillcolor="rgba(255,59,48,.10)",
             line=dict(color=RED,width=2.2),hovertemplate="%{y:.2f} kWh"))
-        fig_fp.add_vrect(x0=2,x1=4,fillcolor="rgba(220,38,38,.08)",line_width=0,
+        fig_fp.add_vrect(x0=2,x1=4,fillcolor="rgba(255,59,48,.06)",line_width=0,
             annotation_text="Anomalny pobór 02–04",annotation_font_size=9)
         fl(fig_fp,260,xkw=dict(title="Godzina doby"),ykw=dict(title="kWh"))
         st.plotly_chart(fig_fp, use_container_width=True)
@@ -747,7 +831,7 @@ elif view == "🔍 Detekcja Fraudów":
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-elif view == "📋 Podsumowanie":
+elif view == "📋  Podsumowanie":
     st.markdown("## Podsumowanie operacyjne & predykcja problemów")
     st.info("🤖 **AI Synthesis:** 60 liczników, 3 transformatory, 6 ciągów. "
             "**4 priorytety krytyczne** na 24h. Ryzyko awarii bez interwencji: **67%**. "
@@ -758,22 +842,22 @@ elif view == "📋 Podsumowanie":
         st.markdown("**🔴 Działania krytyczne — dziś**")
         for ac in D.CRITICAL_ACTIONS:
             st.markdown(f"""<div style="border:1px solid #fee2e2;border-left:4px solid #ef4444;
-                border-radius:8px;padding:12px 14px;background:white;margin-bottom:8px">
+                border-radius:8px;padding:12px 14px;background:#FFFFFF;margin-bottom:8px">
               <div style="display:flex;gap:8px;align-items:flex-start">
                 <span style="font-size:18px;flex-shrink:0">{ac['icon']}</span>
                 <div><div style="font-weight:700;font-size:13px">{ac['title']}</div>
-                  <div style="font-size:12px;color:#6b7585;margin-top:3px">{ac['desc']}</div>
+                  <div style="font-size:12px;color:#7C8499;margin-top:3px">{ac['desc']}</div>
                 </div></div></div>""", unsafe_allow_html=True)
 
     with col2:
         st.markdown("**🟡 Działania planowe — ten tydzień**")
         for ac in D.PLANNED_ACTIONS:
             st.markdown(f"""<div style="border:1px solid #fef3c7;border-left:4px solid #f59e0b;
-                border-radius:8px;padding:11px 13px;background:white;margin-bottom:7px">
+                border-radius:8px;padding:11px 13px;background:#FFFFFF;margin-bottom:7px">
               <div style="display:flex;gap:8px;align-items:flex-start">
                 <span style="font-size:16px;flex-shrink:0">{ac['icon']}</span>
                 <div><div style="font-weight:600;font-size:12px">{ac['title']}</div>
-                  <div style="font-size:11px;color:#6b7585;margin-top:2px">{ac['desc']}</div>
+                  <div style="font-size:11px;color:#7C8499;margin-top:2px">{ac['desc']}</div>
                 </div></div></div>""", unsafe_allow_html=True)
 
     st.divider()
@@ -806,10 +890,10 @@ elif view == "📋 Podsumowanie":
             cm={"green":GREEN,"blue":BLUE,"orange":AMBER,"teal":TEAL,"red":RED}
             c5_=cm.get(k["color"],GRAY)
             st.markdown(f"""<div style="display:flex;justify-content:space-between;
-                align-items:center;padding:8px 10px;background:#f8f9fb;border-radius:6px;
+                align-items:center;padding:8px 10px;background:#F8F9FB;border-radius:6px;
                 border:1px solid #e2e6ed;margin-bottom:5px">
-              <span style="font-size:11px;color:#6b7585">{k['label']}</span>
-              <span style="font-family:monospace;font-weight:700;font-size:13px;
+              <span style="font-size:11px;color:#7C8499">{k['label']}</span>
+              <span style="font-family:"JetBrains Mono",monospace;font-weight:700;font-size:13px;
                   color:{c5_}">{k['value']}</span>
             </div>""", unsafe_allow_html=True)
 
@@ -831,7 +915,7 @@ elif view == "📋 Podsumowanie":
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-elif view == "🔢 Liczniki":
+elif view == "🔢  Liczniki":
     st.markdown("## Liczniki AMR — 60 punktów pomiarowych")
     df_m=D.get_meters_df()
     co1,co2,co3=st.columns(3)
