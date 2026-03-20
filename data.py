@@ -205,57 +205,72 @@ FRAUD_CASES = [
 
 # ─── GENERATORY SZEREGÓW CZASOWYCH ────────────────────────────────────────────
 
-def get_load_profile_96(station_id: str = "all") -> pd.DataFrame:
-    """Profil zużycia — 96 punktów (co 15 min przez 24h)."""
-    rng = np.random.default_rng(42)
-    base = np.array([
-        20,18,17,16,15,14,13,12,11,11,12,13,14,16,18,21,
-        24,27,30,33,35,37,38,39,39,38,36,34,32,30,28,26,
-        24,22,20,18,17,16,15,14,13,12,11,10,10,10,11,12,
-        14,17,20,24,28,32,36,39,41,42,43,44,45,46,47,46,
-        45,44,43,42,41,40,39,38,37,36,35,36,37,38,40,42,
-        44,46,48,50,51,50,49,48,46,44,42,40,38,35,32,28,
-    ], dtype=float)
+def get_load_profile_96(station_id: str = "all", ref_date=None) -> pd.DataFrame:
+    """
+    Profil zużycia — 96 punktów (co 15 min przez 24h).
 
-    scale = {"ST-A": 0.32, "ST-B": 0.41, "ST-C": 0.27}.get(station_id, 1.0)
-    load = base * scale + rng.normal(0, 0.5, 96)
+    Wartości REALISTYCZNE dla Polski (dane GUS/URE):
+    - Średnie gosp. domowe: ~3 500 kWh/rok → ~9.6 kWh/dobę → ~0.4 kW średnio
+    - Szczyt wieczorny (17-21h): ~0.8–1.2 kW per gosp.
+    - 20 gosp. domowych (ST-A/C): szczyt ~20 kW, średnia ~8 kW
+    - 20 odbiorców mix przem. (ST-B): szczyt ~200 kW, średnia ~80 kW
+    - 60 odbiorców łącznie: szczyt ~350–450 kW
+    """
+    seed = 42 if ref_date is None else int(ref_date.strftime("%Y%m%d")) % 10000
+    rng = np.random.default_rng(seed)
+
+    # Bazowy profil znormalizowany 0-1 (typowy profil PL wg PSE)
+    # Dwa szczyty: poranny 7-9h i wieczorny 17-21h
+    base_norm = np.array([
+        0.38, 0.35, 0.32, 0.30, 0.29, 0.28, 0.30, 0.38,   # 0-7h  noc/świt
+        0.55, 0.72, 0.78, 0.75, 0.70, 0.68, 0.65, 0.62,   # 8-15h praca
+        0.65, 0.72, 0.82, 0.92, 1.00, 0.95, 0.88, 0.80,   # 16-23h wieczór
+    ], dtype=float)
+    # Rozszerzamy do 96 punktów (każda godzina → 4×15min)
+    base_96 = np.repeat(base_norm, 4)
+    # Lekkie wygładzenie
+    from numpy.lib.stride_tricks import sliding_window_view
+    kernel = np.array([0.15, 0.7, 0.15])
+    base_96_s = np.convolve(base_96, kernel, mode='same')
+
+    # Skale mocy szczytowej per stacja (kW)
+    # ST-A: 20 gosp. mieszkaniowych → szczyt ~18 kW
+    # ST-B: 20 odbiorcow mix przemysłowych → szczyt ~220 kW
+    # ST-C: 20 usługowo-mieszkaniowych → szczyt ~22 kW
+    peak = {"ST-A": 18, "ST-B": 220, "ST-C": 22}.get(station_id, 260)
+
+    load = base_96_s * peak * (1 + rng.normal(0, 0.04, 96))
     load = np.clip(load, 0, None)
 
-    # OZE: aktywna tylko 7:30–17:00 (indeksy 30–68)
+    # OZE — aktywna 07:00–17:00 (indeksy 28–68 przy 15-min próbkowaniu)
+    # Marzec: świt ~07:30, zmierzch ~17:30
     pv_peak = {"ST-A": 50, "ST-B": 30, "ST-C": 60}.get(station_id, 140)
-    pv_shape = np.zeros(96)
-    pv_hours = {
-        30: 0.02, 32: 0.08, 36: 0.20, 40: 0.38, 44: 0.55,
-        48: 0.72, 52: 0.85, 56: 0.90, 60: 0.82, 64: 0.65,
-        68: 0.42, 72: 0.20, 76: 0.06, 80: 0.01,
-    }
-    for idx, frac in pv_hours.items():
-        if idx < 96:
-            pv_shape[idx] = frac
-    # Interpolacja między punktami
-    for i in range(96):
-        if pv_shape[i] == 0 and i > 30 and i < 80:
-            prev_keys = [k for k in sorted(pv_hours.keys()) if k <= i]
-            next_keys = [k for k in sorted(pv_hours.keys()) if k > i]
-            if prev_keys and next_keys:
-                pk, nk = max(prev_keys), min(next_keys)
-                alpha = (i - pk) / (nk - pk)
-                pv_shape[i] = pv_hours[pk] * (1 - alpha) + pv_hours[nk] * alpha
 
-    oze = pv_shape * pv_peak * (0.85 + rng.random(96) * 0.30)
+    # Kształt krzywej PV — gaussowski dla marca
+    pv_center = 48  # południe = index 48 (12:00)
+    pv_sigma  = 14  # szerokość
+    pv_shape  = np.exp(-0.5 * ((np.arange(96) - pv_center) / pv_sigma) ** 2)
+    # Wyzeruj przed 7:00 (idx<28) i po 17:00 (idx>68)
+    pv_shape[:28] = 0
+    pv_shape[69:]  = 0
+    # Zachmurzenie o 13h (~idx 52-56)
+    cloud_factor = np.ones(96)
+    cloud_factor[52:57] = 0.45 + rng.random(5) * 0.2
+    oze = pv_shape * pv_peak * cloud_factor * (0.88 + rng.random(96) * 0.18)
     oze = np.clip(oze, 0, pv_peak)
-
-    # Chmury o 13h (~idx 52)
-    cloud_mask = np.zeros(96)
-    cloud_mask[52:58] = 0.4
-    oze = oze * (1 - cloud_mask * rng.random(96))
 
     netto = np.maximum(0, load - oze)
 
-    now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    times = [now + timedelta(minutes=15 * i) for i in range(96)]
-    return pd.DataFrame({"time": times, "load_kw": load.round(1),
-                         "oze_kw": oze.round(1), "netto_kw": netto.round(1)})
+    # Timestamp bazowy
+    base_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    if ref_date is not None:
+        base_dt = datetime.combine(ref_date, datetime.min.time())
+    times = [base_dt + timedelta(minutes=15 * i) for i in range(96)]
+
+    return pd.DataFrame({"time": times,
+                         "load_kw": load.round(0),
+                         "oze_kw": oze.round(0),
+                         "netto_kw": netto.round(0)})
 
 
 def get_voltage_history_48(ciag_id: str = "C1", phase: str = "avg") -> pd.DataFrame:
@@ -360,6 +375,21 @@ def get_vibration_spectrum(station_id: str = "ST-B") -> pd.DataFrame:
     freqs = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]
     vals = data.get(station_id, data["ST-B"])
     return pd.DataFrame({"freq_hz": freqs, "amplitude_mms": vals})
+
+
+def get_vibration_history(station_id: str = "ST-B") -> pd.DataFrame:
+    """Historia amplitudy drgań 100 Hz — 30 dni (trend detekcji anomalii)."""
+    rng = np.random.default_rng(hash(station_id) % (2**31))
+    n = 30
+    base_vals = {"ST-A": 1.2, "ST-B": 3.2, "ST-C": 0.9}
+    base = base_vals.get(station_id, 3.2)
+    # ST-B ma lekki trend wzrostowy (sygnał nadchodzącej anomalii)
+    trend = 0.018 if station_id == "ST-B" else 0.002
+    values = base + trend * np.arange(n) + rng.normal(0, 0.12, n)
+    values = np.clip(values, 0.1, 5.0)
+    today = datetime.now().date()
+    dates = [str(today - timedelta(days=n-1-i)) for i in range(n)]
+    return pd.DataFrame({"date": dates, "vib_100hz": values.round(3)})
 
 
 def get_thd_harmonics() -> pd.DataFrame:
